@@ -8,13 +8,27 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  Platform,
 } from 'react-native';
-import MapView, { Heatmap, Circle, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../utils/api';
+
+// Conditionally import MapView only on native platforms
+let MapView: any;
+let Circle: any;
+let Marker: any;
+let PROVIDER_DEFAULT: any;
+
+if (Platform.OS !== 'web') {
+  const RNMaps = require('react-native-maps');
+  MapView = RNMaps.default;
+  Circle = RNMaps.Circle;
+  Marker = RNMaps.Marker;
+  PROVIDER_DEFAULT = RNMaps.PROVIDER_DEFAULT;
+}
 
 const { width, height } = Dimensions.get('window');
 
