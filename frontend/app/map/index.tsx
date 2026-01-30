@@ -50,8 +50,15 @@ export default function MapScreen() {
   }, []);
 
   const requestLocationPermission = async () => {
+    // WEB PLATFORM: Show fallback UI, location APIs don't work in browsers
+    if (Platform.OS === 'web') {
+      console.log('Web platform detected - skipping location request');
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Check if location services are enabled
+      // Check if location services are enabled (MOBILE ONLY)
       const isEnabled = await Location.hasServicesEnabledAsync();
       if (!isEnabled) {
         Alert.alert(
@@ -101,7 +108,7 @@ export default function MapScreen() {
       setLocation(loc);
       
       // Center map on user location
-      if (mapRef.current && Platform.OS !== 'web') {
+      if (mapRef.current) {
         mapRef.current.animateToRegion({
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
