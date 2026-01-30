@@ -50,20 +50,57 @@ export default function MapScreen() {
 
   const requestLocationPermission = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      // Check if location services are enabled
+      const isEnabled = await Location.hasServicesEnabledAsync();
+      if (!isEnabled) {
         Alert.alert(
-          'Permission Required',
-          'Location permission is required to use this app and report incidents.'
+          'Location Services Disabled',
+          'Please enable location services in your device settings to use this app.',
+          [
+            { text: 'OK' }
+          ]
         );
+        setLoading(false);
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({});
+      // Request permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'SafeSpace needs location access to:\n\n• Show nearby safety reports\n• Report incidents at your location\n• Alert you about danger zones\n\nPlease grant location permission to continue.',
+          [
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              }
+            },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Get current location with timeout
+      console.log('Getting current location...');
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        timeout: 15000, // 15 second timeout
+      });
+      
+      console.log('Location obtained:', loc.coords);
       setLocation(loc);
       
       // Center map on user location
-      if (mapRef.current) {
+      if (mapRef.current && Platform.OS !== 'web') {
         mapRef.current.animateToRegion({
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
@@ -73,9 +110,42 @@ export default function MapScreen() {
       }
 
       await loadMapData(loc.coords.latitude, loc.coords.longitude);
-    } catch (error) {
-      console.error('Location permission error:', error);
-      Alert.alert('Error', 'Failed to get location permission');
+    } catch (error: any) {
+      console.error('Location error:', error);
+      
+      // Provide specific error messages
+      let errorMessage = 'Unable to get your location. ';
+      let errorTitle = 'Location Error';
+      
+      if (error.code === 'E_LOCATION_TIMEOUT') {
+        errorMessage += 'Request timed out. Please make sure you have a clear view of the sky and try again.';
+        errorTitle = 'Location Timeout';
+      } else if (error.code === 'E_LOCATION_SERVICES_DISABLED') {
+        errorMessage += 'Location services are disabled. Please enable them in settings.';
+        errorTitle = 'Location Services Off';
+      } else if (error.code === 'E_LOCATION_UNAVAILABLE') {
+        errorMessage += 'Location is temporarily unavailable. Please try again in a moment.';
+      } else {
+        errorMessage += error.message || 'Please check your device settings and try again.';
+      }
+      
+      Alert.alert(
+        errorTitle,
+        errorMessage,
+        [
+          {
+            text: 'Retry',
+            onPress: () => {
+              setLoading(true);
+              requestLocationPermission();
+            }
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
     } finally {
       setLoading(false);
     }
