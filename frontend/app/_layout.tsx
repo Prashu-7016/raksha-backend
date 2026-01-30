@@ -2,6 +2,12 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { AuthProvider } from '../contexts/AuthContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Platform } from 'react-native';
+
+// Polyfill Buffer for web
+if (Platform.OS === 'web') {
+  global.Buffer = require('buffer').Buffer;
+}
 
 export default function RootLayout() {
   return (
