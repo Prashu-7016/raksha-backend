@@ -22,6 +22,20 @@ export const hashSeedPhrase = async (phrase: string, deviceSalt: string): Promis
 
 export const getDeviceSalt = async (): Promise<string> => {
   try {
+    // Web fallback
+    if (Platform.OS === 'web') {
+      let salt = localStorage.getItem('device_salt');
+      if (!salt) {
+        salt = await Crypto.digestStringAsync(
+          Crypto.CryptoDigestAlgorithm.SHA256,
+          `${Date.now()}_${Math.random()}_web`
+        );
+        localStorage.setItem('device_salt', salt);
+      }
+      return salt;
+    }
+    
+    // Native platforms
     let salt = await SecureStore.getItemAsync('device_salt');
     if (!salt) {
       // Generate new salt
@@ -40,6 +54,13 @@ export const getDeviceSalt = async (): Promise<string> => {
 
 export const storeSeedHash = async (hash: string): Promise<void> => {
   try {
+    // Web fallback
+    if (Platform.OS === 'web') {
+      localStorage.setItem('seed_hash', hash);
+      return;
+    }
+    
+    // Native platforms
     await SecureStore.setItemAsync('seed_hash', hash);
   } catch (error) {
     console.error('Error storing seed hash:', error);
@@ -49,6 +70,12 @@ export const storeSeedHash = async (hash: string): Promise<void> => {
 
 export const getSeedHash = async (): Promise<string | null> => {
   try {
+    // Web fallback
+    if (Platform.OS === 'web') {
+      return localStorage.getItem('seed_hash');
+    }
+    
+    // Native platforms
     return await SecureStore.getItemAsync('seed_hash');
   } catch (error) {
     console.error('Error retrieving seed hash:', error);
@@ -58,6 +85,13 @@ export const getSeedHash = async (): Promise<string | null> => {
 
 export const clearAuth = async (): Promise<void> => {
   try {
+    // Web fallback
+    if (Platform.OS === 'web') {
+      localStorage.removeItem('seed_hash');
+      return;
+    }
+    
+    // Native platforms
     await SecureStore.deleteItemAsync('seed_hash');
   } catch (error) {
     console.error('Error clearing auth:', error);
