@@ -327,18 +327,26 @@ async def get_risk_score(lat: float, lng: float, radius_km: float = 1.0):
     radius_meters = radius_km * 1000
     
     # Find incidents near location using geospatial query
-    incidents = await db.incidents.find({
-        "moderation_status": "approved",
-        "rounded_location": {
-            "$near": {
-                "$geometry": {
-                    "type": "Point",
-                    "coordinates": [lng, lat]
-                },
-                "$maxDistance": radius_meters
+    incidents = await db.incidents.find(
+        {
+            "moderation_status": "approved",
+            "rounded_location": {
+                "$near": {
+                    "$geometry": {
+                        "type": "Point",
+                        "coordinates": [lng, lat]
+                    },
+                    "$maxDistance": radius_meters
+                }
             }
+        },
+        {
+            "severity": 1,
+            "category": 1,
+            "timestamp": 1,
+            "_id": 0
         }
-    }).to_list(100)
+    ).to_list(100)
     
     if not incidents:
         return {
@@ -388,11 +396,20 @@ async def get_risk_score(lat: float, lng: float, radius_km: float = 1.0):
 async def get_danger_zones(bounds: HeatmapBounds):
     """Identify high-risk zones within bounds"""
     # Get all incidents in area
-    incidents = await db.incidents.find({
-        "moderation_status": "approved",
-        "rounded_location.coordinates.1": {"$gte": bounds.min_lat, "$lte": bounds.max_lat},
-        "rounded_location.coordinates.0": {"$gte": bounds.min_lng, "$lte": bounds.max_lng}
-    }).to_list(1000)
+    incidents = await db.incidents.find(
+        {
+            "moderation_status": "approved",
+            "rounded_location.coordinates.1": {"$gte": bounds.min_lat, "$lte": bounds.max_lat},
+            "rounded_location.coordinates.0": {"$gte": bounds.min_lng, "$lte": bounds.max_lng}
+        },
+        {
+            "rounded_location": 1,
+            "severity": 1,
+            "category": 1,
+            "timestamp": 1,
+            "_id": 0
+        }
+    ).to_list(1000)
     
     # Cluster incidents by rounded location
     location_clusters = {}
