@@ -164,6 +164,75 @@ export default function MapScreen() {
     );
   }
 
+  // Web fallback UI
+  if (Platform.OS === 'web') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.webFallbackContainer}>
+          <View style={styles.webHeader}>
+            <Ionicons name="shield-checkmark" size={80} color="#9333EA" />
+            <Text style={styles.webTitle}>SafeSpace</Text>
+            <Text style={styles.webSubtitle}>Women's Safety App</Text>
+          </View>
+
+          <View style={styles.webWarning}>
+            <Ionicons name="phone-portrait" size={48} color="#F59E0B" />
+            <Text style={styles.webWarningTitle}>Mobile App Required</Text>
+            <Text style={styles.webWarningText}>
+              SafeSpace uses native GPS and mapping features that only work on mobile devices.
+            </Text>
+          </View>
+
+          <View style={styles.webInstructions}>
+            <Text style={styles.webInstructionsTitle}>How to Test:</Text>
+            <View style={styles.webStep}>
+              <Text style={styles.webStepNumber}>1.</Text>
+              <Text style={styles.webStepText}>Install Expo Go on your phone (Android/iOS)</Text>
+            </View>
+            <View style={styles.webStep}>
+              <Text style={styles.webStepNumber}>2.</Text>
+              <Text style={styles.webStepText}>Scan the QR code from Expo preview</Text>
+            </View>
+            <View style={styles.webStep}>
+              <Text style={styles.webStepNumber}>3.</Text>
+              <Text style={styles.webStepText}>Experience full map, GPS, and safety features</Text>
+            </View>
+          </View>
+
+          <View style={styles.webFeatures}>
+            <Text style={styles.webFeaturesTitle}>Features on Mobile:</Text>
+            <View style={styles.webFeature}>
+              <Ionicons name="map" size={20} color="#10B981" />
+              <Text style={styles.webFeatureText}>Live map with heatmaps</Text>
+            </View>
+            <View style={styles.webFeature}>
+              <Ionicons name="location" size={20} color="#10B981" />
+              <Text style={styles.webFeatureText}>GPS incident reporting</Text>
+            </View>
+            <View style={styles.webFeature}>
+              <Ionicons name="alert-circle" size={20} color="#10B981" />
+              <Text style={styles.webFeatureText}>Real-time danger zones</Text>
+            </View>
+            <View style={styles.webFeature}>
+              <Ionicons name="shield-checkmark" size={20} color="#10B981" />
+              <Text style={styles.webFeatureText}>100% anonymous reporting</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.webLogoutButton}
+            onPress={async () => {
+              await logout();
+              router.replace('/auth/welcome');
+            }}
+          >
+            <Text style={styles.webLogoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <MapView
