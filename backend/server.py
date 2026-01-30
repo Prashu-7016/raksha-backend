@@ -288,11 +288,20 @@ async def moderate_incident(incident_id: str, description: str, category: str):
 async def get_heatmap_data(bounds: HeatmapBounds):
     """Get incident data for heatmap within bounds"""
     # Query incidents within bounds (approved only)
-    incidents = await db.incidents.find({
-        "moderation_status": "approved",
-        "rounded_location.coordinates.1": {"$gte": bounds.min_lat, "$lte": bounds.max_lat},
-        "rounded_location.coordinates.0": {"$gte": bounds.min_lng, "$lte": bounds.max_lng}
-    }).to_list(1000)
+    incidents = await db.incidents.find(
+        {
+            "moderation_status": "approved",
+            "rounded_location.coordinates.1": {"$gte": bounds.min_lat, "$lte": bounds.max_lat},
+            "rounded_location.coordinates.0": {"$gte": bounds.min_lng, "$lte": bounds.max_lng}
+        },
+        {
+            "rounded_location": 1,
+            "severity": 1,
+            "category": 1,
+            "timestamp": 1,
+            "_id": 0
+        }
+    ).to_list(1000)
     
     # Convert to heatmap points with time decay
     heatmap_points = []
