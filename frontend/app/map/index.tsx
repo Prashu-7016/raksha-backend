@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,9 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
-  Dimensions,
+  ScrollView,
   Platform,
   Linking,
-  ScrollView,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,54 +17,28 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../utils/api';
 
-const { width, height } = Dimensions.get('window');
-
 export default function MapScreen() {
   const router = useRouter();
   const { seedHash, logout } = useAuth();
-  const mapRef = useRef<MapView>(null);
   
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [heatmapData, setHeatmapData] = useState<any[]>([]);
-  const [dangerZones, setDangerZones] = useState<any[]>([]);
   const [riskScore, setRiskScore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
+  const [nearbyIncidents, setNearbyIncidents] = useState<number>(0);
 
   useEffect(() => {
     requestLocationPermission();
   }, []);
 
   const requestLocationPermission = async () => {
-    // WEB PLATFORM: Show fallback UI, location APIs don't work in browsers
-    if (Platform.OS === 'web') {
-      console.log('Web platform detected - skipping location request');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Check if location services are enabled (MOBILE ONLY)
-      const isEnabled = await Location.hasServicesEnabledAsync();
-      if (!isEnabled) {
-        Alert.alert(
-          'Location Services Disabled',
-          'Please enable location services in your device settings to use this app.',
-          [
-            { text: 'OK' }
-          ]
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Request permission
       const { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status !== 'granted') {
         Alert.alert(
           'Permission Required',
-          'SafeSpace needs location access to:\n\n• Show nearby safety reports\n• Report incidents at your location\n• Alert you about danger zones\n\nPlease grant location permission to continue.',
+          'SafeSpace needs location access to show safety information.',
           [
             {
               text: 'Open Settings',
@@ -84,49 +57,20 @@ export default function MapScreen() {
         return;
       }
 
-      // Get current location with timeout
       console.log('Getting current location...');
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
-        timeout: 15000, // 15 second timeout
       });
       
       console.log('Location obtained:', loc.coords);
       setLocation(loc);
-      
-      // Center map on user location
-      if (mapRef.current) {
-        mapRef.current.animateToRegion({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        });
-      }
 
-      await loadMapData(loc.coords.latitude, loc.coords.longitude);
+      await loadSafetyData(loc.coords.latitude, loc.coords.longitude);
     } catch (error: any) {
       console.error('Location error:', error);
-      
-      // Provide specific error messages
-      let errorMessage = 'Unable to get your location. ';
-      let errorTitle = 'Location Error';
-      
-      if (error.code === 'E_LOCATION_TIMEOUT') {
-        errorMessage += 'Request timed out. Please make sure you have a clear view of the sky and try again.';
-        errorTitle = 'Location Timeout';
-      } else if (error.code === 'E_LOCATION_SERVICES_DISABLED') {
-        errorMessage += 'Location services are disabled. Please enable them in settings.';
-        errorTitle = 'Location Services Off';
-      } else if (error.code === 'E_LOCATION_UNAVAILABLE') {
-        errorMessage += 'Location is temporarily unavailable. Please try again in a moment.';
-      } else {
-        errorMessage += error.message || 'Please check your device settings and try again.';
-      }
-      
       Alert.alert(
-        errorTitle,
-        errorMessage,
+        'Location Error',
+        'Unable to get your location. Please enable location services and try again.',
         [
           {
             text: 'Retry',
@@ -135,10 +79,7 @@ export default function MapScreen() {
               requestLocationPermission();
             }
           },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
+          { text: 'Cancel', style: 'cancel' }
         ]
       );
     } finally {
@@ -146,41 +87,13 @@ export default function MapScreen() {
     }
   };
 
-  const loadMapData = async (lat: number, lng: number) => {
+  const loadSafetyData = async (lat: number, lng: number) => {
     try {
-      // Get heatmap data for visible area
-      const bounds = {
-        min_lat: lat - 0.05,
-        max_lat: lat + 0.05,
-        min_lng: lng - 0.05,
-        max_lng: lng + 0.05,
-      };
-
-      const [heatmap, zones, risk] = await Promise.all([
-        api.getHeatmapData(bounds),
-        api.getDangerZones(bounds),
-        api.getRiskScore(lat, lng, 1.0),
-      ]);
-
-      setHeatmapData(heatmap.points || []);
-      setDangerZones(zones.zones || []);
+      const risk = await api.getRiskScore(lat, lng, 1.0);
       setRiskScore(risk);
+      setNearbyIncidents(risk.incident_count || 0);
     } catch (error) {
-      console.error('Error loading map data:', error);
-    }
-  };
-
-  const refreshLocation = async () => {
-    if (!location) return;
-    setLoading(true);
-    try {
-      const loc = await Location.getCurrentPositionAsync({});
-      setLocation(loc);
-      await loadMapData(loc.coords.latitude, loc.coords.longitude);
-    } catch (error) {
-      console.error('Refresh error:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error loading safety data:', error);
     }
   };
 
@@ -215,7 +128,7 @@ export default function MapScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#9333EA" />
-        <Text style={styles.loadingText}>Loading map...</Text>
+        <Text style={styles.loadingText}>Loading your safety information...</Text>
       </View>
     );
   }
@@ -225,232 +138,144 @@ export default function MapScreen() {
       <View style={styles.loadingContainer}>
         <Ionicons name="location-outline" size={64} color="#6B7280" />
         <Text style={styles.errorText}>Location not available</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={requestLocationPermission}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
-    );
-  }
-
-  // Web fallback UI
-  if (Platform.OS === 'web') {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.webFallbackContainer}>
-          <View style={styles.webHeader}>
-            <Ionicons name="shield-checkmark" size={80} color="#9333EA" />
-            <Text style={styles.webTitle}>SafeSpace</Text>
-            <Text style={styles.webSubtitle}>Women's Safety App</Text>
-          </View>
-
-          <View style={styles.webWarning}>
-            <Ionicons name="phone-portrait" size={48} color="#F59E0B" />
-            <Text style={styles.webWarningTitle}>Mobile App Required</Text>
-            <Text style={styles.webWarningText}>
-              SafeSpace uses native GPS and mapping features that only work on mobile devices.
-            </Text>
-          </View>
-
-          <View style={styles.webInstructions}>
-            <Text style={styles.webInstructionsTitle}>How to Test:</Text>
-            <View style={styles.webStep}>
-              <Text style={styles.webStepNumber}>1.</Text>
-              <Text style={styles.webStepText}>Install Expo Go on your phone (Android/iOS)</Text>
-            </View>
-            <View style={styles.webStep}>
-              <Text style={styles.webStepNumber}>2.</Text>
-              <Text style={styles.webStepText}>Scan the QR code from Expo preview</Text>
-            </View>
-            <View style={styles.webStep}>
-              <Text style={styles.webStepNumber}>3.</Text>
-              <Text style={styles.webStepText}>Experience full map, GPS, and safety features</Text>
-            </View>
-          </View>
-
-          <View style={styles.webFeatures}>
-            <Text style={styles.webFeaturesTitle}>Features on Mobile:</Text>
-            <View style={styles.webFeature}>
-              <Ionicons name="map" size={20} color="#10B981" />
-              <Text style={styles.webFeatureText}>Live map with heatmaps</Text>
-            </View>
-            <View style={styles.webFeature}>
-              <Ionicons name="location" size={20} color="#10B981" />
-              <Text style={styles.webFeatureText}>GPS incident reporting</Text>
-            </View>
-            <View style={styles.webFeature}>
-              <Ionicons name="alert-circle" size={20} color="#10B981" />
-              <Text style={styles.webFeatureText}>Real-time danger zones</Text>
-            </View>
-            <View style={styles.webFeature}>
-              <Ionicons name="shield-checkmark" size={20} color="#10B981" />
-              <Text style={styles.webFeatureText}>100% anonymous reporting</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.webLogoutButton}
-            onPress={async () => {
-              await logout();
-              router.replace('/auth/welcome');
-            }}
-          >
-            <Text style={styles.webLogoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={{
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
-        showsUserLocation
-        showsMyLocationButton={false}
-      >
-        {/* Danger Zones */}
-        {dangerZones.map((zone) => (
-          <Circle
-            key={zone.zone_id}
-            center={{
-              latitude: zone.center.latitude,
-              longitude: zone.center.longitude,
-            }}
-            radius={zone.radius}
-            fillColor={`${getRiskColor(zone.risk_level)}33`}
-            strokeColor={getRiskColor(zone.risk_level)}
-            strokeWidth={2}
-          />
-        ))}
-
-        {/* Heatmap Points as Markers */}
-        {heatmapData.map((point, index) => (
-          <Marker
-            key={index}
-            coordinate={{
-              latitude: point.latitude,
-              longitude: point.longitude,
-            }}
-            opacity={point.weight}
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.appTitle}>
+            <Ionicons name="shield-checkmark" size={32} color="#9333EA" />
+            <Text style={styles.appTitleText}>SafeSpace</Text>
+          </View>
+          
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => setShowMenu(!showMenu)}
           >
-            <View
-              style={[
-                styles.heatmapMarker,
-                { backgroundColor: point.severity > 3 ? '#DC2626' : '#F59E0B' },
-              ]}
-            />
-          </Marker>
-        ))}
-      </MapView>
-
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.appTitle}>
-          <Ionicons name="shield-checkmark" size={24} color="#9333EA" />
-          <Text style={styles.appTitleText}>SafeSpace</Text>
-        </View>
-        
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => setShowMenu(!showMenu)}
-        >
-          <Ionicons name="menu" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Menu Overlay */}
-      {showMenu && (
-        <View style={styles.menuOverlay}>
-          <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#DC2626" />
-            <Text style={styles.menuItemText}>Logout</Text>
+            <Ionicons name="menu" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-      )}
 
-      {/* Risk Score Card */}
-      {riskScore && (
-        <View style={styles.riskCard}>
-          <View style={styles.riskHeader}>
-            <Ionicons
-              name="alert-circle"
-              size={20}
-              color={getRiskColor(riskScore.risk_level)}
-            />
-            <Text style={styles.riskTitle}>Current Area Risk</Text>
+        {/* Menu Overlay */}
+        {showMenu && (
+          <View style={styles.menuOverlay}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+              <Text style={styles.menuItemText}>Logout</Text>
+            </TouchableOpacity>
           </View>
-          <Text
-            style={[
-              styles.riskLevel,
-              { color: getRiskColor(riskScore.risk_level) },
-            ]}
+        )}
+
+        {/* Location Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="location" size={24} color="#9333EA" />
+            <Text style={styles.cardTitle}>Your Location</Text>
+          </View>
+          <Text style={styles.locationText}>
+            {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
+          </Text>
+          <Text style={styles.locationNote}>
+            Location rounded for privacy
+          </Text>
+        </View>
+
+        {/* Risk Score Card */}
+        {riskScore && (
+          <View style={[styles.card, styles.riskCard]}>
+            <View style={styles.cardHeader}>
+              <Ionicons
+                name="alert-circle"
+                size={24}
+                color={getRiskColor(riskScore.risk_level)}
+              />
+              <Text style={styles.cardTitle}>Area Safety Score</Text>
+            </View>
+            
+            <View style={styles.riskScoreContainer}>
+              <Text
+                style={[
+                  styles.riskLevel,
+                  { color: getRiskColor(riskScore.risk_level) },
+                ]}
+              >
+                {riskScore.risk_level.toUpperCase()}
+              </Text>
+              <Text style={styles.riskScore}>
+                {Math.round(riskScore.risk_score)}/100
+              </Text>
+            </View>
+            
+            <Text style={styles.riskDetail}>
+              {nearbyIncidents} incidents reported within 1km
+            </Text>
+
+            {/* Category Breakdown */}
+            {riskScore.categories && Object.keys(riskScore.categories).length > 0 && (
+              <View style={styles.categoriesContainer}>
+                <Text style={styles.categoriesTitle}>Incident Types:</Text>
+                {Object.entries(riskScore.categories).map(([category, count]: any) => (
+                  <View key={category} style={styles.categoryRow}>
+                    <Text style={styles.categoryName}>{category.replace('_', ' ')}</Text>
+                    <Text style={styles.categoryCount}>{count}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Safety Tips */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="bulb" size={24} color="#F59E0B" />
+            <Text style={styles.cardTitle}>Safety Tips</Text>
+          </View>
+          <View style={styles.tipsList}>
+            <Text style={styles.tipItem}>• Share your location with trusted contacts</Text>
+            <Text style={styles.tipItem}>• Avoid isolated areas, especially after dark</Text>
+            <Text style={styles.tipItem}>• Trust your instincts</Text>
+            <Text style={styles.tipItem}>• Keep emergency numbers handy</Text>
+          </View>
+        </View>
+
+        {/* Map Note */}
+        <View style={styles.noteCard}>
+          <Ionicons name="information-circle" size={20} color="#3B82F6" />
+          <Text style={styles.noteText}>
+            📍 Interactive map with heatmaps will be available in the production app build
+          </Text>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={async () => {
+              setLoading(true);
+              await requestLocationPermission();
+            }}
           >
-            {riskScore.risk_level.toUpperCase()}
-          </Text>
-          <Text style={styles.riskDetail}>
-            {riskScore.incident_count} incidents reported nearby
-          </Text>
+            <Ionicons name="refresh" size={20} color="#FFFFFF" />
+            <Text style={styles.refreshButtonText}>Refresh Data</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.reportButton}
+            onPress={() => router.push('/incidents/report')}
+          >
+            <Ionicons name="alert" size={24} color="#FFFFFF" />
+            <Text style={styles.reportButtonText}>Report Incident</Text>
+          </TouchableOpacity>
         </View>
-      )}
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity style={styles.refreshButton} onPress={refreshLocation}>
-          <Ionicons name="refresh" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.reportButton}
-          onPress={() => router.push('/incidents/report')}
-        >
-          <Ionicons name="alert" size={28} color="#FFFFFF" />
-          <Text style={styles.reportButtonText}>Report Incident</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.locationButton}
-          onPress={() => {
-            if (mapRef.current && location) {
-              mapRef.current.animateToRegion({
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05,
-              });
-            }
-          }}
-        >
-          <Ionicons name="locate" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Legend */}
-      <View style={styles.legend}>
-        <Text style={styles.legendTitle}>Risk Levels</Text>
-        <View style={styles.legendItems}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
-            <Text style={styles.legendText}>Safe</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#FCD34D' }]} />
-            <Text style={styles.legendText}>Low</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-            <Text style={styles.legendText}>Medium</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#DC2626' }]} />
-            <Text style={styles.legendText}>High</Text>
-          </View>
-        </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -460,64 +285,71 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0A0A0A',
   },
-  map: {
-    width: width,
-    height: height,
+  content: {
+    padding: 16,
   },
   loadingContainer: {
     flex: 1,
     backgroundColor: '#0A0A0A',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 24,
   },
   loadingText: {
     color: '#9CA3AF',
     fontSize: 16,
     marginTop: 16,
+    textAlign: 'center',
   },
   errorText: {
     color: '#9CA3AF',
-    fontSize: 16,
+    fontSize: 18,
     marginTop: 16,
+    marginBottom: 24,
   },
-  topBar: {
-    position: 'absolute',
-    top: 50,
-    left: 16,
-    right: 16,
+  retryButton: {
+    backgroundColor: '#9333EA',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 24,
   },
   appTitle: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1F2937',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
   },
   appTitleText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginLeft: 8,
+    marginLeft: 12,
   },
   menuButton: {
-    backgroundColor: '#1F2937',
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: '#1F2937',
     alignItems: 'center',
     justifyContent: 'center',
   },
   menuOverlay: {
     position: 'absolute',
-    top: 100,
+    top: 70,
     right: 16,
     backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 8,
+    zIndex: 1000,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -534,227 +366,136 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 12,
   },
-  riskCard: {
-    position: 'absolute',
-    top: 120,
-    left: 16,
-    right: 16,
+  card: {
     backgroundColor: '#1F2937',
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
   },
-  riskHeader: {
+  riskCard: {
+    borderWidth: 2,
+    borderColor: '#374151',
+  },
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
   },
-  riskTitle: {
+  cardTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  locationText: {
     color: '#D1D5DB',
-    fontSize: 14,
-    marginLeft: 8,
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  locationNote: {
+    color: '#6B7280',
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  riskScoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   riskLevel: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 4,
+  },
+  riskScore: {
+    fontSize: 20,
+    color: '#9CA3AF',
+    fontWeight: '600',
   },
   riskDetail: {
     color: '#9CA3AF',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  categoriesContainer: {
+    backgroundColor: '#111827',
+    borderRadius: 8,
+    padding: 12,
+  },
+  categoriesTitle: {
+    color: '#D1D5DB',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  categoryName: {
+    color: '#9CA3AF',
     fontSize: 13,
+    textTransform: 'capitalize',
+  },
+  categoryCount: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tipsList: {
+    marginTop: 8,
+  },
+  tipItem: {
+    color: '#D1D5DB',
+    fontSize: 14,
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  noteCard: {
+    flexDirection: 'row',
+    backgroundColor: '#1E3A8A',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  noteText: {
+    flex: 1,
+    color: '#93C5FD',
+    fontSize: 13,
+    marginLeft: 12,
+    lineHeight: 18,
   },
   actionButtons: {
-    position: 'absolute',
-    bottom: 100,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
+    marginBottom: 24,
   },
   refreshButton: {
-    backgroundColor: '#1F2937',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reportButton: {
-    flex: 1,
-    backgroundColor: '#DC2626',
+    backgroundColor: '#374151',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
-    borderRadius: 24,
+    borderRadius: 12,
+    gap: 8,
+  },
+  refreshButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  reportButton: {
+    backgroundColor: '#DC2626',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
     gap: 8,
   },
   reportButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  locationButton: {
-    backgroundColor: '#1F2937',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  legend: {
-    position: 'absolute',
-    bottom: 30,
-    left: 16,
-    right: 16,
-    backgroundColor: '#1F2937',
-    padding: 12,
-    borderRadius: 12,
-  },
-  legendTitle: {
-    color: '#D1D5DB',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  legendItems: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 4,
-  },
-  legendText: {
-    color: '#9CA3AF',
-    fontSize: 11,
-  },
-  heatmapMarker: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-  },
-  // Web fallback styles
-  webFallbackContainer: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  webHeader: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  webTitle: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginTop: 16,
-  },
-  webSubtitle: {
-    fontSize: 16,
-    color: '#9CA3AF',
-    marginTop: 8,
-  },
-  webWarning: {
-    backgroundColor: '#451A03',
-    padding: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    maxWidth: 500,
-  },
-  webWarningTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FCD34D',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  webWarningText: {
-    fontSize: 14,
-    color: '#FCD34D',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  webInstructions: {
-    backgroundColor: '#1F2937',
-    padding: 24,
-    borderRadius: 12,
-    marginBottom: 24,
-    maxWidth: 500,
-    width: '100%',
-  },
-  webInstructionsTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 16,
-  },
-  webStep: {
-    flexDirection: 'row',
-    marginBottom: 12,
-    alignItems: 'flex-start',
-  },
-  webStepNumber: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#9333EA',
-    marginRight: 8,
-    width: 24,
-  },
-  webStepText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#D1D5DB',
-    lineHeight: 20,
-  },
-  webFeatures: {
-    backgroundColor: '#1F2937',
-    padding: 24,
-    borderRadius: 12,
-    marginBottom: 24,
-    maxWidth: 500,
-    width: '100%',
-  },
-  webFeaturesTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 16,
-  },
-  webFeature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  webFeatureText: {
-    fontSize: 14,
-    color: '#D1D5DB',
-    marginLeft: 12,
-  },
-  webLogoutButton: {
-    backgroundColor: '#DC2626',
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-  },
-  webLogoutText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
