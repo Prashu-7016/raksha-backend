@@ -69,9 +69,39 @@ export default function ReportIncident() {
       return;
     }
 
-    if (!location) {
-      Alert.alert('Error', 'Location not available. Please try again.');
-      return;
+    // Get final location (current GPS or manual entry)
+    let finalLocation: { latitude: number; longitude: number } | null = null;
+
+    if (useManualLocation) {
+      // Validate manual coordinates
+      const lat = parseFloat(manualLatitude);
+      const lng = parseFloat(manualLongitude);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        Alert.alert('Invalid Location', 'Please enter valid latitude and longitude values');
+        return;
+      }
+
+      if (lat < -90 || lat > 90) {
+        Alert.alert('Invalid Latitude', 'Latitude must be between -90 and 90');
+        return;
+      }
+
+      if (lng < -180 || lng > 180) {
+        Alert.alert('Invalid Longitude', 'Longitude must be between -180 and 180');
+        return;
+      }
+
+      finalLocation = { latitude: lat, longitude: lng };
+    } else {
+      if (!location) {
+        Alert.alert('Error', 'Location not available. Please enable manual location or try again.');
+        return;
+      }
+      finalLocation = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
     }
 
     if (!seedHash) {
@@ -83,10 +113,7 @@ export default function ReportIncident() {
     try {
       await api.reportIncident({
         seed_hash: seedHash,
-        location: {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        },
+        location: finalLocation,
         category,
         severity,
         description: description.trim() || undefined,
