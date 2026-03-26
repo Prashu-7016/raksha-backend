@@ -167,6 +167,91 @@ export default function ReportIncident() {
             </Text>
           </View>
 
+          {/* Location Selection Mode */}
+          <View style={styles.locationModeCard}>
+            <Text style={styles.sectionTitle}>Location Source</Text>
+            
+            <View style={styles.locationModeButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.locationModeButton,
+                  !useManualLocation && styles.locationModeButtonActive,
+                ]}
+                onPress={() => setUseManualLocation(false)}
+              >
+                <Ionicons 
+                  name="navigate" 
+                  size={20} 
+                  color={!useManualLocation ? '#9333EA' : '#6B7280'} 
+                />
+                <Text style={[
+                  styles.locationModeText,
+                  !useManualLocation && styles.locationModeTextActive,
+                ]}>
+                  Current GPS
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.locationModeButton,
+                  useManualLocation && styles.locationModeButtonActive,
+                ]}
+                onPress={() => setUseManualLocation(true)}
+              >
+                <Ionicons 
+                  name="create" 
+                  size={20} 
+                  color={useManualLocation ? '#9333EA' : '#6B7280'} 
+                />
+                <Text style={[
+                  styles.locationModeText,
+                  useManualLocation && styles.locationModeTextActive,
+                ]}>
+                  Enter Manually
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Manual Location Input Fields */}
+            {useManualLocation && (
+              <View style={styles.manualLocationInputs}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Latitude</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    placeholder="e.g., 28.6139"
+                    placeholderTextColor="#6B7280"
+                    value={manualLatitude}
+                    onChangeText={setManualLatitude}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.inputHint}>Range: -90 to 90</Text>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Longitude</Text>
+                  <TextInput
+                    style={styles.coordinateInput}
+                    placeholder="e.g., 77.2090"
+                    placeholderTextColor="#6B7280"
+                    value={manualLongitude}
+                    onChangeText={setManualLongitude}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.inputHint}>Range: -180 to 180</Text>
+                </View>
+
+                <View style={styles.manualLocationHelp}>
+                  <Ionicons name="information-circle" size={16} color="#3B82F6" />
+                  <Text style={styles.manualLocationHelpText}>
+                    Enter coordinates of where the incident occurred. You can get these from Google Maps.
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
           {/* Category Selection */}
           <Text style={styles.sectionTitle}>What happened?</Text>
           <View style={styles.categoryGrid}>
