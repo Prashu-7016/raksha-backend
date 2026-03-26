@@ -558,4 +558,78 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     lineHeight: 16,
   },
+  // Location mode selection styles
+  locationModeCard: {
+    marginBottom: 24,
+  },
+  locationModeButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  locationModeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1F2937',
+    padding: 14,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  locationModeButtonActive: {
+    borderColor: '#9333EA',
+    backgroundColor: '#2D1B4E',
+  },
+  locationModeText: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  locationModeTextActive: {
+    color: '#FFFFFF',
+  },
+  manualLocationInputs: {
+    backgroundColor: '#1F2937',
+    padding: 16,
+    borderRadius: 12,
+    gap: 16,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  coordinateInput: {
+    backgroundColor: '#111827',
+    padding: 12,
+    borderRadius: 8,
+    color: '#FFFFFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  inputHint: {
+    color: '#6B7280',
+    fontSize: 12,
+  },
+  manualLocationHelp: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#1E3A8A',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  manualLocationHelpText: {
+    flex: 1,
+    color: '#93C5FD',
+    fontSize: 12,
+    lineHeight: 16,
+  },
 });
