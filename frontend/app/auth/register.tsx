@@ -64,11 +64,20 @@ export default function Register() {
 
     setLoading(true);
     try {
+      console.log('Starting registration...');
       const deviceSalt = await getDeviceSalt();
+      console.log('Device salt obtained:', deviceSalt.substring(0, 10) + '...');
+      
       const hash = await hashSeedPhrase(seedPhrase, deviceSalt);
+      console.log('Hash generated:', hash.substring(0, 10) + '...');
 
-      await api.register({ seed_hash: hash, device_salt: deviceSalt });
+      console.log('Calling API register...');
+      const response = await api.register({ seed_hash: hash, device_salt: deviceSalt });
+      console.log('API register response:', response);
+      
+      console.log('Storing hash locally...');
       await register(hash);
+      console.log('Registration complete!');
 
       Alert.alert(
         'Success!',
@@ -76,12 +85,17 @@ export default function Register() {
         [
           {
             text: 'Continue',
-            onPress: () => router.replace('/map'),
+            onPress: () => {
+              console.log('Navigating to map...');
+              router.replace('/map');
+            },
           },
         ]
       );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to create account');
+      console.error('Registration error:', error);
+      console.error('Error details:', JSON.stringify(error));
+      Alert.alert('Error', error.message || 'Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }
