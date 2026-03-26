@@ -159,26 +159,36 @@ async def moderate_with_ai(description: str, category: str) -> Dict[str, Any]:
 @api_router.post("/auth/register", response_model=RegisterResponse)
 async def register_user(request: RegisterRequest):
     """Register a new user with seed phrase hash"""
-    # Check if user already exists
-    existing = await db.users.find_one({"hash": request.seed_hash})
-    if existing:
-        raise HTTPException(status_code=400, detail="User already exists")
-    
-    user_id = str(uuid.uuid4())
-    user_doc = {
-        "user_id": user_id,
-        "hash": request.seed_hash,
-        "device_salt": request.device_salt,
-        "created_at": datetime.utcnow(),
-        "last_login": datetime.utcnow()
-    }
-    
-    await db.users.insert_one(user_doc)
-    
-    return RegisterResponse(
-        user_id=user_id,
-        created_at=user_doc["created_at"]
-    )
+    try:
+        logging.info(f"Registration attempt - hash prefix: {request.seed_hash[:10]}...")
+        
+        # Check if user already exists
+        existing = await db.users.find_one({"hash": request.seed_hash})
+        if existing:
+            logging.warning(f"User already exists with hash: {request.seed_hash[:10]}...")
+            raise HTTPException(status_code=400, detail="User already exists. Please use login instead.")
+        
+        user_id = str(uuid.uuid4())
+        user_doc = {
+            "user_id": user_id,
+            "hash": request.seed_hash,
+            "device_salt": request.device_salt,
+            "created_at": datetime.utcnow(),
+            "last_login": datetime.utcnow()
+        }
+        
+        await db.users.insert_one(user_doc)
+        logging.info(f"User registered successfully: {user_id}")
+        
+        return RegisterResponse(
+            user_id=user_id,
+            created_at=user_doc["created_at"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 @api_router.post("/auth/login", response_model=LoginResponse)
 async def login_user(request: LoginRequest):
