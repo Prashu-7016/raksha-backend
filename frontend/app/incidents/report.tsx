@@ -31,6 +31,9 @@ export default function ReportIncident() {
   const router = useRouter();
   const { seedHash } = useAuth();
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [useManualLocation, setUseManualLocation] = useState(false);
+  const [manualLatitude, setManualLatitude] = useState('');
+  const [manualLongitude, setManualLongitude] = useState('');
   const [category, setCategory] = useState('');
   const [severity, setSeverity] = useState(3);
   const [description, setDescription] = useState('');
