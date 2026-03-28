@@ -1,13 +1,12 @@
+import 'react-native-get-random-values';
+import { Buffer } from 'buffer';
+
+global.Buffer = Buffer;
+
 import React from 'react';
 import { Slot } from 'expo-router';
 import { AuthProvider } from '../contexts/AuthContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Platform } from 'react-native';
-
-// Polyfill Buffer for web
-if (Platform.OS === 'web') {
-  global.Buffer = require('buffer').Buffer;
-}
 
 export default function RootLayout() {
   return (

@@ -1,69 +1,19 @@
 {
   "expo": {
-    "name": "SafeSpace",
-    "slug": "safespace-women-safety",
+    "name": "tempApp",
+    "slug": "tempApp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "safespace",
-    "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.safespace.app",
-      "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Access location to report and view safety incidents nearby",
-        "NSLocationAlwaysUsageDescription": "Monitor location to alert you when entering high-risk areas",
-        "NSCameraUsageDescription": "Capture photos for incident reports if needed"
-      }
-    },
+    "userInterfaceStyle": "automatic",
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0A0A0A"
-      },
-      "package": "com.safespace.app",
-      "edgeToEdgeEnabled": true,
-      "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
-      ]
+      "package": "com.prashu7016.tempApp"
     },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
-    "plugins": [
-      "expo-router",
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Access location to report and view safety incidents nearby"
-        }
-      ],
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#0A0A0A"
-        }
-      ],
-      "expo-font",
-      "expo-web-browser"
-    ],
-    "experiments": {
-      "typedRoutes": true
+    "ios": {
+      "bundleIdentifier": "com.prashu7016.tempApp"
     },
     "extra": {
-      "router": {
-        "origin": false
-      },
       "eas": {
-        "projectId": "safespace-women-safety"
+        "projectId": "2a944ee2-e4f7-464e-a11f-2cfdedf3bf4f"
       }
     }
   }
