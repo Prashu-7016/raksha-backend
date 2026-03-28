@@ -1,6 +1,5 @@
 import Constants from 'expo-constants';
-
-const BACKEND_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const BACKEND_URL = "https://raksha-backend-fa6y.onrender.com";
 
 const API_BASE = `${BACKEND_URL}/api`;
 
@@ -39,10 +38,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Registration failed');
     }
+
     return response.json();
   },
 
@@ -52,10 +53,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Login failed');
     }
+
     return response.json();
   },
 
@@ -65,10 +68,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to submit report');
     }
+
     return response.json();
   },
 
@@ -78,15 +83,23 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bounds),
     });
-    if (!response.ok) throw new Error('Failed to fetch heatmap data');
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch heatmap');
+    }
+
     return response.json();
   },
 
-  getRiskScore: async (lat: number, lng: number, radius: number = 1.0) => {
+  getRiskScore: async (lat: number, lng: number, radius: number) => {
     const response = await fetch(
-      `${API_BASE}/incidents/risk-score?lat=${lat}&lng=${lng}&radius_km=${radius}`
+      `${API_BASE}/incidents/risk-score?lat=${lat}&lng=${lng}&radius=${radius}`
     );
-    if (!response.ok) throw new Error('Failed to fetch risk score');
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch risk score');
+    }
+
     return response.json();
   },
 
@@ -96,7 +109,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bounds),
     });
-    if (!response.ok) throw new Error('Failed to fetch danger zones');
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch danger zones');
+    }
+
     return response.json();
   },
 };
