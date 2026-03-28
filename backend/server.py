@@ -486,3 +486,10 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+@app.post("/api/auth/register")
+def register(data: dict):
+    return {
+        "status": "success",
+        "message": "Account created",
+        "data": data
+    }
