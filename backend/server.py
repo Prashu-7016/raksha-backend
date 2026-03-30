@@ -17,7 +17,6 @@ load_dotenv(ROOT_DIR / ".env")
 mongo_url = os.environ.get("MONGO_URL")
 db_name = os.environ.get("DB_NAME")
 
-# Fallback (prevents crash)
 if not mongo_url:
     mongo_url = "mongodb+srv://prashanthd559_db_user:L6njveRBlPm4HEUE@cluster0.v9gzt0g.mongodb.net/raksha_db?retryWrites=true&w=majority"
 
@@ -186,6 +185,88 @@ async def get_risk_score(lat: float, lng: float, radius: float = 1):
         "categories": category_counts
     }
 
+# ------------------ HEATMAP ------------------
+
+@router.post("/incidents/heatmap")
+async def get_heatmap():
+
+    incidents = await db.incidents.find({}, {
+        "location": 1,
+        "severity": 1,
+        "_id": 0
+    }).to_list(1000)
+
+    points = []
+
+    for inc in incidents:
+        if "location" not in inc:
+            continue
+
+        coords = inc["location"]["coordinates"]
+
+        points.append({
+            "latitude": coords[1],
+            "longitude": coords[0],
+            "weight": inc.get("severity", 1) / 5
+        })
+
+    return {
+        "points": points,
+        "count": len(points)
+    }
+
+# ------------------ DANGER ZONES ------------------
+
+@router.post("/zones/danger-zones")
+async def get_danger_zones():
+
+    incidents = await db.incidents.find({}, {
+        "location": 1,
+        "severity": 1,
+        "_id": 0
+    }).to_list(1000)
+
+    clusters = {}
+
+    for inc in incidents:
+        if "location" not in inc:
+            continue
+
+        coords = inc["location"]["coordinates"]
+        key = f"{round(coords[1], 3)},{round(coords[0], 3)}"
+
+        if key not in clusters:
+            clusters[key] = []
+
+        clusters[key].append(inc)
+
+    zones = []
+
+    for key, cluster in clusters.items():
+        if len(cluster) < 2:
+            continue
+
+        lat, lng = map(float, key.split(","))
+
+        avg_severity = sum(i.get("severity", 1) for i in cluster) / len(cluster)
+
+        zones.append({
+            "zone_id": str(uuid.uuid4()),
+            "center": {
+                "latitude": lat,
+                "longitude": lng
+            },
+            "radius": 300,
+            "risk_level": "high" if avg_severity > 3 else "medium",
+            "incident_count": len(cluster),
+            "avg_severity": avg_severity
+        })
+
+    return {
+        "zones": zones,
+        "count": len(zones)
+    }
+
 # ------------------ HEALTH ------------------
 
 @app.get("/health")
@@ -199,7 +280,6 @@ def health():
 
 app.include_router(router)
 
-# IMPORTANT: Geospatial index
 @app.on_event("startup")
 async def startup():
     await db.incidents.create_index([("location", "2dsphere")])
