@@ -98,7 +98,7 @@ async def login_user(data: LoginRequest):
         "user_id": user["user_id"]
     }
 
-# ------------------ INCIDENT ------------------
+# ------------------ INCIDENT REPORT ------------------
 
 @router.post("/incidents/report")
 async def report_incident(data: IncidentRequest):
@@ -127,21 +127,63 @@ async def report_incident(data: IncidentRequest):
         "incident_id": incident["incident_id"]
     }
 
-# ------------------ RISK SCORE (FIXED) ------------------
+# ------------------ REAL RISK SCORE ------------------
 
 @router.get("/incidents/risk-score")
 async def get_risk_score(lat: float, lng: float, radius: float = 1):
-    """
-    Temporary safe response so app doesn't crash
-    """
+
+    radius_meters = radius * 1000
+
+    incidents = await db.incidents.find({
+        "location": {
+            "$near": {
+                "$geometry": {
+                    "type": "Point",
+                    "coordinates": [lng, lat]
+                },
+                "$maxDistance": radius_meters
+            }
+        }
+    }).to_list(100)
+
+    if not incidents:
+        return {
+            "latitude": lat,
+            "longitude": lng,
+            "risk_level": "safe",
+            "risk_score": 0.0,
+            "incident_count": 0,
+            "categories": {}
+        }
+
+    total_weight = 0
+    category_counts = {}
+
+    for inc in incidents:
+        severity = inc.get("severity", 1)
+        total_weight += severity / 5
+
+        cat = inc.get("category", "other")
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+
+    risk_score = min(total_weight / 10, 1.0)
+
+    if risk_score > 0.7:
+        risk_level = "high"
+    elif risk_score > 0.4:
+        risk_level = "medium"
+    elif risk_score > 0.1:
+        risk_level = "low"
+    else:
+        risk_level = "safe"
 
     return {
         "latitude": lat,
         "longitude": lng,
-        "risk_level": "low",
-        "risk_score": 0.2,
-        "incident_count": 0,
-        "categories": {}
+        "risk_level": risk_level,
+        "risk_score": risk_score,
+        "incident_count": len(incidents),
+        "categories": category_counts
     }
 
 # ------------------ HEALTH ------------------
@@ -156,6 +198,11 @@ def health():
 # ------------------ SETUP ------------------
 
 app.include_router(router)
+
+# IMPORTANT: Geospatial index
+@app.on_event("startup")
+async def startup():
+    await db.incidents.create_index([("location", "2dsphere")])
 
 app.add_middleware(
     CORSMiddleware,
