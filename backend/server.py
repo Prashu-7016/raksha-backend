@@ -1,24 +1,34 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from motor.motor_asyncio import AsyncIOMotorClient
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
+import os
 import uuid
+from datetime import datetime
+import logging
+from pathlib import Path
 
+# Load env
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / ".env")
+
+# Logging
+logging.basicConfig(level=logging.INFO)
+
+# MongoDB
+mongo_url = os.environ.get("MONGO_URL")
+db_name = os.environ.get("DB_NAME")
+
+client = AsyncIOMotorClient(mongo_url)
+db = client[db_name]
+
+# App
 app = FastAPI()
+router = APIRouter(prefix="/api")
 
-# ✅ CORS (VERY IMPORTANT)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# =========================
-# 📦 MODELS
-# =========================
+# ------------------ MODELS ------------------
 
 class RegisterRequest(BaseModel):
     seed_hash: str
@@ -28,89 +38,101 @@ class LoginRequest(BaseModel):
     seed_hash: str
     device_salt: str
 
-class IncidentReport(BaseModel):
+class Location(BaseModel):
+    latitude: float
+    longitude: float
+
+class IncidentRequest(BaseModel):
     seed_hash: str
-    location: dict
+    location: Location
     category: str
-    severity: int
+    severity: int = Field(ge=1, le=5)
     description: Optional[str] = None
 
-# =========================
-# 🧠 TEMP DATABASE
-# =========================
+# ------------------ UTILS ------------------
 
-users = {}
-incidents = []
+async def verify_user(seed_hash: str):
+    user = await db.users.find_one({"hash": seed_hash})
+    return user
 
-# =========================
-# 🔐 AUTH
-# =========================
+# ------------------ AUTH ------------------
 
-@app.post("/api/auth/register")
-async def register(data: RegisterRequest):
-    if data.seed_hash in users:
+@router.post("/auth/register")
+async def register_user(data: RegisterRequest):
+    existing = await db.users.find_one({"hash": data.seed_hash})
+
+    if existing:
         raise HTTPException(status_code=400, detail="User already exists")
 
-    user_id = str(uuid.uuid4())
-
-    users[data.seed_hash] = {
-        "user_id": user_id,
+    user = {
+        "user_id": str(uuid.uuid4()),
+        "hash": data.seed_hash,
         "device_salt": data.device_salt,
         "created_at": datetime.utcnow()
     }
 
+    await db.users.insert_one(user)
+
     return {
-        "user_id": user_id,
-        "message": "User registered successfully"
+        "status": "success",
+        "user_id": user["user_id"]
     }
 
-
-@app.post("/api/auth/login")
-async def login(data: LoginRequest):
-    user = users.get(data.seed_hash)
+@router.post("/auth/login")
+async def login_user(data: LoginRequest):
+    user = await db.users.find_one({"hash": data.seed_hash})
 
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
     return {
-        "user_id": user["user_id"],
-        "message": "Login successful"
+        "status": "success",
+        "user_id": user["user_id"]
     }
 
-# =========================
-# 🚨 INCIDENTS
-# =========================
+# ------------------ INCIDENT ------------------
 
-@app.post("/api/incidents/report")
-async def report_incident(data: IncidentReport):
-    incidents.append({
-        "id": str(uuid.uuid4()),
-        "data": data.dict(),
+@router.post("/incidents/report")
+async def report_incident(data: IncidentRequest):
+    user = await verify_user(data.seed_hash)
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    incident = {
+        "incident_id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        "location": {
+            "type": "Point",
+            "coordinates": [data.location.longitude, data.location.latitude]
+        },
+        "category": data.category,
+        "severity": data.severity,
+        "description": data.description,
         "timestamp": datetime.utcnow()
-    })
+    }
 
-    return {"message": "Incident reported"}
+    await db.incidents.insert_one(incident)
 
-@app.post("/api/incidents/heatmap")
-async def heatmap():
-    return {"data": incidents}
+    return {
+        "status": "success",
+        "incident_id": incident["incident_id"]
+    }
 
-@app.get("/api/incidents/risk-score")
-async def risk_score(lat: float, lng: float, radius: float):
-    return {"risk_score": 0.5}
-
-@app.post("/api/zones/danger-zones")
-async def danger_zones():
-    return {"zones": []}
-
-# =========================
-# HEALTH CHECK
-# =========================
-
-@app.get("/")
-async def root():
-    return {"status": "Backend running"}
+# ------------------ HEALTH ------------------
 
 @app.get("/health")
-async def health():
+def health():
     return {"status": "ok"}
+
+# ------------------ SETUP ------------------
+
+app.include_router(router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
