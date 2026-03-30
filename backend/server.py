@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
@@ -10,23 +10,33 @@ from datetime import datetime
 import logging
 from pathlib import Path
 
-# Load env
+# ------------------ LOAD ENV ------------------
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
-# Logging
-logging.basicConfig(level=logging.INFO)
-
-# MongoDB
 mongo_url = os.environ.get("MONGO_URL")
 db_name = os.environ.get("DB_NAME")
+
+print("DEBUG -> MONGO_URL:", mongo_url)
+print("DEBUG -> DB_NAME:", db_name)
+
+# ------------------ VALIDATION ------------------
+
+if not mongo_url or not db_name:
+    raise Exception("❌ Missing MONGO_URL or DB_NAME in environment variables")
+
+# ------------------ DATABASE ------------------
 
 client = AsyncIOMotorClient(mongo_url)
 db = client[db_name]
 
-# App
+# ------------------ APP ------------------
+
 app = FastAPI()
 router = APIRouter(prefix="/api")
+
+logging.basicConfig(level=logging.INFO)
 
 # ------------------ MODELS ------------------
 
@@ -52,8 +62,7 @@ class IncidentRequest(BaseModel):
 # ------------------ UTILS ------------------
 
 async def verify_user(seed_hash: str):
-    user = await db.users.find_one({"hash": seed_hash})
-    return user
+    return await db.users.find_one({"hash": seed_hash})
 
 # ------------------ AUTH ------------------
 
@@ -123,7 +132,10 @@ async def report_incident(data: IncidentRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "mongo_connected": True
+    }
 
 # ------------------ SETUP ------------------
 
